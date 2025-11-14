@@ -3,9 +3,10 @@ import {
   GetPlayerByIdParamsDto,
   GetPlayerScoresParamsDto,
   GetPlayerScoresQueryDto,
+  GetTopPlayersQueryDto,
   IPlayer,
   IPlayersService,
-  IPlayerWithScore,
+  IPaginatedPlayers,
   IScore,
 } from './types';
 import { PlayersService } from './services/players.service';
@@ -24,8 +25,13 @@ export class PlayersController {
   }
 
   @Get('top')
-  async getTopPlayers(): Promise<IPlayerWithScore[]> {
-    return await this.playersService.getTopPlayers(this.maxPlayers);
+  async getTopPlayers(
+    @Query() query: GetTopPlayersQueryDto,
+  ): Promise<IPaginatedPlayers> {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? this.maxPlayers, this.maxPlayers);
+
+    return await this.playersService.getTopPlayers(page, limit);
   }
 
   @Get(':id')

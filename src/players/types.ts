@@ -1,4 +1,5 @@
-import { IsDateString, IsUUID } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class GetPlayerByIdParamsDto {
   @IsUUID()
@@ -18,6 +19,20 @@ export class GetPlayerScoresQueryDto {
   endDate!: string;
 }
 
+export class GetTopPlayersQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
+}
+
 export interface IPlayer {
   id: string;
   nickname: string;
@@ -34,6 +49,19 @@ export interface IScore {
   datetime: Date;
 }
 
+export interface IPaginatedPlayers {
+  items: IPlayerWithScore[];
+  totalItems: number;
+  totalPages: number;
+  page: number;
+  limit: number;
+}
+
+export interface IFindTopPlayersResult {
+  players: IPlayerWithScore[];
+  totalItems: number;
+}
+
 export interface IPlayerWebScrapperScore {
   rank: number;
   name: string;
@@ -46,7 +74,7 @@ export interface IPlayerGateway {
 }
 
 export interface IPlayersService {
-  getTopPlayers(limit: number): Promise<IPlayerWithScore[]>;
+  getTopPlayers(page: number, limit: number): Promise<IPaginatedPlayers>;
   getPlayerById(id: string): Promise<IPlayer>;
   refreshScores(limit: number): Promise<void>;
   getPlayerScores(
@@ -57,7 +85,7 @@ export interface IPlayersService {
 }
 
 export interface IPlayerRepository {
-  findTopPlayers(limit: number): Promise<IPlayerWithScore[]>;
+  findTopPlayers(limit: number, offset: number): Promise<IFindTopPlayersResult>;
   findPlayerByNickname(nickname: string): Promise<IPlayer | null>;
   findPlayerById(id: string): Promise<IPlayer | null>;
   savePlayer(player: IPlayer): Promise<IPlayer>;

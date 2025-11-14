@@ -1,6 +1,11 @@
 import { InjectModel } from '@nestjs/sequelize';
 import { Player } from '../models/player.model';
-import { IPlayer, IPlayerRepository, IScore } from '../types';
+import {
+  IFindTopPlayersResult,
+  IPlayer,
+  IPlayerRepository,
+  IScore,
+} from '../types';
 import { Score } from '../models/score.model';
 import { NotFoundException } from '@nestjs/common';
 
@@ -10,16 +15,32 @@ export class PlayersDbRepository implements IPlayerRepository {
     @InjectModel(Score) private scoreModel: typeof Score,
   ) {}
 
-  async findTopPlayers(limit: number) {
+  async findTopPlayers(
+    limit: number,
+    offset: number,
+  ): Promise<IFindTopPlayersResult> {
     const lastDatetime = await this.scoreModel.max('datetime');
-    const players = await Player.findAll({
-      limit,
+
+    if (!lastDatetime) {
+      return { players: [], totalItems: 0 };
+    }
+
+    const { rows, count } = await this.playerModel.findAndCountAll({
       include: [
-        { model: Score, as: 'scores', where: { datetime: lastDatetime } },
+        {
+          model: Score,
+          as: 'scores',
+          where: { datetime: lastDatetime },
+          required: true,
+        },
       ],
+      limit,
+      offset,
+      distinct: true,
+      order: [[{ model: Score, as: 'scores' }, 'rank', 'ASC']],
     });
 
-    return players.map((player) => ({
+    const players = rows.map((player) => ({
       id: player.id,
       nickname: player.nickname,
       scores:
@@ -30,6 +51,8 @@ export class PlayersDbRepository implements IPlayerRepository {
           datetime: score.datetime,
         })) ?? [],
     }));
+
+    return { players, totalItems: count };
   }
 
   async savePlayer(player: IPlayer) {

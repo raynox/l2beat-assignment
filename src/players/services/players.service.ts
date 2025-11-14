@@ -5,7 +5,7 @@ import {
   IPlayerGateway,
   IPlayerRepository,
   IPlayersService,
-  IPlayerWithScore,
+  IPaginatedPlayers,
   IScore,
   IScoreRepository,
 } from '../types';
@@ -23,8 +23,23 @@ export class PlayersService implements IPlayersService {
     private readonly scoresRepository: IScoreRepository,
   ) {}
 
-  async getTopPlayers(limit: number): Promise<IPlayerWithScore[]> {
-    return this.playersRepository.findTopPlayers(limit);
+  async getTopPlayers(page: number, limit: number): Promise<IPaginatedPlayers> {
+    const safePage = Math.max(page, 1);
+    const offset = (safePage - 1) * limit;
+    const { players, totalItems } = await this.playersRepository.findTopPlayers(
+      limit,
+      offset,
+    );
+
+    const totalPages = totalItems || Math.ceil(totalItems / limit);
+
+    return {
+      items: players,
+      totalItems,
+      totalPages,
+      page: safePage,
+      limit,
+    };
   }
 
   async refreshScores(limit: number): Promise<void> {
