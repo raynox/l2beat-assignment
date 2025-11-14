@@ -6,16 +6,18 @@ the latest leaderboard snapshot.
 
 ## API
 
-| Method | Path           | Description                                                |
-| ------ | -------------- | ---------------------------------------------------------- |
-| GET    | `/players/top` | Returns the most recent snapshot of the top _N_ players.   |
-| GET    | `/players/:id` | Returns a single player (by DB id) with their score trail. |
+| Method | Path                  | Description                                              |
+| ------ | --------------------- | -------------------------------------------------------- |
+| GET    | `/players/top`        | Returns the most recent snapshot of the top _N_ players. |
+| GET    | `/players/:id`        | Returns a single player (by DB id).                      |
+| GET    | `/players/:id/scores` | Returns a player's score history in a given time range.  |
 
 **Defaults & params**
 
 - `N` (the number of players returned by `/players/top`) defaults to the
   `MAX_PLAYERS` env variable (10 if undefined).
-- `/players/:id` throws `404` when the id cannot be found.
+- `/players/:id` and `/players/:id/scores` validate that `id` is a UUID and throw `404` when the player cannot be found.
+- `/players/:id/scores` requires ISO 8601 `startDate` and `endDate` query params, returning the score trail between those timestamps (inclusive).
 
 ### Sample response (`GET /players/top`)
 
@@ -32,6 +34,30 @@ the latest leaderboard snapshot.
         "datetime": "2025-11-14T11:00:00.000Z"
       }
     ]
+  }
+]
+```
+
+````
+
+### Sample response (`GET /players/:id`)
+
+```json
+{
+  "id": "ad0c2cd0-7c53-4c72-89a7-26e8f0a0fb09",
+  "nickname": "Zezima"
+}
+````
+
+### Sample response (`GET /players/:id/scores?startDate=2025-11-14T00:00:00.000Z&endDate=2025-11-15T00:00:00.000Z`)
+
+```json
+[
+  {
+    "rank": 1,
+    "level": 2277,
+    "experience": 4600000000,
+    "datetime": "2025-11-14T11:00:00.000Z"
   }
 ]
 ```
