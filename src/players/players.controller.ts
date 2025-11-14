@@ -1,5 +1,11 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import {
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
   GetPlayerByIdParamsDto,
   GetPlayerScoresParamsDto,
   GetPlayerScoresQueryDto,
@@ -8,10 +14,14 @@ import {
   IPlayersService,
   IPaginatedPlayers,
   IScore,
+  PaginatedPlayersDto,
+  PlayerDto,
+  ScoreDto,
 } from './types';
 import { PlayersService } from './services/players.service';
 import { ConfigService } from '@nestjs/config';
 
+@ApiTags('players')
 @Controller('players')
 export class PlayersController {
   private maxPlayers: number;
@@ -25,6 +35,10 @@ export class PlayersController {
   }
 
   @Get('top')
+  @ApiOperation({
+    summary: 'Retrieve a paginated list of players ordered by score',
+  })
+  @ApiOkResponse({ type: PaginatedPlayersDto })
   async getTopPlayers(
     @Query() query: GetTopPlayersQueryDto,
   ): Promise<IPaginatedPlayers> {
@@ -35,6 +49,9 @@ export class PlayersController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Retrieve a single player by id' })
+  @ApiOkResponse({ type: PlayerDto })
+  @ApiNotFoundResponse({ description: 'Player not found' })
   async getPlayerById(
     @Param() params: GetPlayerByIdParamsDto,
   ): Promise<IPlayer> {
@@ -42,6 +59,10 @@ export class PlayersController {
   }
 
   @Get(':id/scores')
+  @ApiOperation({
+    summary: 'Retrieve all scores for a player within a date range',
+  })
+  @ApiOkResponse({ type: ScoreDto, isArray: true })
   async getPlayerScores(
     @Param() params: GetPlayerScoresParamsDto,
     @Query() query: GetPlayerScoresQueryDto,
