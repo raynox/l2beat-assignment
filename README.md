@@ -38,16 +38,13 @@ the latest leaderboard snapshot.
 ]
 ```
 
-````
-
 ### Sample response (`GET /players/:id`)
 
-```json
+````json
 {
   "id": "ad0c2cd0-7c53-4c72-89a7-26e8f0a0fb09",
   "nickname": "Zezima"
 }
-````
 
 ### Sample response (`GET /players/:id/scores?startDate=2025-11-14T00:00:00.000Z&endDate=2025-11-15T00:00:00.000Z`)
 
@@ -60,7 +57,7 @@ the latest leaderboard snapshot.
     "datetime": "2025-11-14T11:00:00.000Z"
   }
 ]
-```
+````
 
 ## System components
 
