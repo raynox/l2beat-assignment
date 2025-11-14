@@ -5,6 +5,8 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { Player } from './players/models/player.model';
 import { Score } from './players/models/score.model';
 import { ScheduleModule } from '@nestjs/schedule';
+import { LoggerModule } from './logger/logger.module';
+import { Log } from './logger/models/log.model';
 
 @Module({
   imports: [
@@ -14,9 +16,10 @@ import { ScheduleModule } from '@nestjs/schedule';
     SequelizeModule.forRoot({
       dialect: 'sqlite',
       storage: 'database.sqlite',
-      models: [Player, Score],
+      models: [Player, Score, Log],
       autoLoadModels: true,
     }),
+    LoggerModule,
   ],
 })
 export class AppModule {}

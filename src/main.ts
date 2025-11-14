@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { DbLoggerService } from './logger/db-logger.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,6 +12,7 @@ async function bootstrap() {
     }),
   );
 
+  app.useLogger(await app.resolve(DbLoggerService));
   await app.listen(process.env.PORT ?? 3000);
 }
 
