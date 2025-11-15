@@ -25,7 +25,7 @@ export default class WebScrapingPlayersGateway implements IPlayerGateway {
 
     return players.slice(0, limit);
   }
-  pl;
+
   private async scrapPage(page: number): Promise<IPlayerWebScrapperScore[]> {
     if (!this.baseUrl) {
       throw new Error('runescape base url is not set');
