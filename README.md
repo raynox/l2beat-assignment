@@ -4,6 +4,147 @@ Simple NestJS service that periodically scrapes the official RuneScape hiscores
 table, persists players and their scores, and exposes a REST API for querying
 the latest leaderboard snapshot.
 
+## Setup and Run
+
+### Prerequisites
+
+- **Node.js** (v18 or higher recommended)
+- **npm** or **yarn** package manager
+- **SQLite3** (included as a dependency, no separate installation needed)
+
+### Installation
+
+1. Clone the repository and navigate to the project directory:
+
+   ```bash
+   cd l2beat-assignment
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   # Using npm
+   npm install
+
+   # Or using yarn
+   yarn install
+   ```
+
+### Configuration
+
+1. Create a `.env` file in the root directory:
+
+   ```bash
+   cp .env.example .env  # If you have an example file
+   # Or create a new .env file
+   ```
+
+2. Configure the required environment variables (see [Configuration](#configuration) section below):
+
+   ```env
+   RUNESCAPE_URL=https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws
+   MAX_PLAYERS=10
+   PORT=3000
+   ```
+
+   **Note:** `RUNESCAPE_URL` is required and should be the base URL without query parameters. The application automatically appends `?table=0&page={pageNumber}` when fetching leaderboard data. Other variables have defaults but can be customized.
+
+### Running the Application
+
+#### Development Mode
+
+Start the application in watch mode (auto-reloads on file changes):
+
+```bash
+npm run start:dev
+# Or
+yarn start:dev
+```
+
+The application will be available at `http://localhost:3000` (or the port specified in `PORT`).
+
+#### Production Mode
+
+1. Build the application:
+
+   ```bash
+   npm run build
+   # Or
+   yarn build
+   ```
+
+2. Start the production server:
+   ```bash
+   npm run start:prod
+   # Or
+   yarn start:prod
+   ```
+
+#### Debug Mode
+
+Start with debugging enabled:
+
+```bash
+npm run start:debug
+# Or
+yarn start:debug
+```
+
+### Testing
+
+Run unit tests:
+
+```bash
+npm test
+# Or
+yarn test
+```
+
+Run tests in watch mode:
+
+```bash
+npm run test:watch
+# Or
+yarn test:watch
+```
+
+Run tests with coverage:
+
+```bash
+npm run test:cov
+# Or
+yarn test:cov
+```
+
+Run end-to-end tests:
+
+```bash
+npm run test:e2e
+# Or
+yarn test:e2e
+```
+
+### Database
+
+The application uses SQLite for data persistence. The database file is created automatically on first run at the location specified by `DB_STORAGE` (default: `database.sqlite` in the project root).
+
+- **Players** and **Scores** are stored in the database
+- **Logs** are also persisted to the database for queryable logging
+
+The database schema is automatically created by Sequelize when the application starts.
+
+### Verification
+
+Once the application is running, you can verify it's working by:
+
+1. Checking the health of the API:
+
+   ```bash
+   curl http://localhost:3000/players/top
+   ```
+
+2. The cron job runs every minute to refresh leaderboard data. You should see log entries indicating successful scraping.
+
 ## API
 
 | Method | Path                  | Description                                                                                                         |
