@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { Score } from '../models/score.model';
 import { NotFoundException } from '@nestjs/common';
+import { Op } from 'sequelize';
 
 export class PlayersDbRepository implements IPlayerRepository {
   constructor(
@@ -18,10 +19,33 @@ export class PlayersDbRepository implements IPlayerRepository {
   async findTopPlayers(
     limit: number,
     offset: number,
+    date?: Date,
   ): Promise<IFindTopPlayersResult> {
-    const lastDatetime = await this.scoreModel.max('datetime');
+    let targetDatetime: Date | null;
 
-    if (!lastDatetime) {
+    if (date) {
+      // Find the closest next date (>= provided date)
+      const closestDate = await this.scoreModel.findOne({
+        where: {
+          datetime: {
+            [Op.gte]: date,
+          },
+        },
+        order: [['datetime', 'ASC']],
+        attributes: ['datetime'],
+      });
+
+      if (!closestDate) {
+        return { players: [], totalItems: 0 };
+      }
+
+      targetDatetime = closestDate.datetime;
+    } else {
+      // Use the latest datetime (current behavior)
+      targetDatetime = await this.scoreModel.max('datetime');
+    }
+
+    if (!targetDatetime) {
       return { players: [], totalItems: 0 };
     }
 
@@ -30,7 +54,7 @@ export class PlayersDbRepository implements IPlayerRepository {
         {
           model: Score,
           as: 'scores',
-          where: { datetime: lastDatetime },
+          where: { datetime: targetDatetime },
           required: true,
         },
       ],

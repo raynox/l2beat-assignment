@@ -30,8 +30,9 @@ export class PlayersController {
   ): Promise<IPaginatedPlayers> {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? this.maxPlayers, this.maxPlayers);
+    const date = query.date ? new Date(query.date) : undefined;
 
-    return await this.playersService.getTopPlayers(page, limit);
+    return await this.playersService.getTopPlayers(page, limit, date);
   }
 
   @Get(':id')

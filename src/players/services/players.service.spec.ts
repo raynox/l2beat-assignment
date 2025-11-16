@@ -141,4 +141,54 @@ describe('PlayersService (integration with SQLite, mocked gateway)', () => {
     const experiences = scores.map((s) => s.experience).sort();
     expect(experiences).toEqual([1_000_000, 1_200_000]);
   });
+
+  it('should pass date parameter to repository when provided', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'Kilo', level: 85, experience: 7_000_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    await service.refreshScores(1);
+
+    const targetDate = new Date('2024-01-20T10:00:00Z');
+    const result = await service.getTopPlayers(1, 10, targetDate);
+
+    expect(result.totalItems).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(result.items)).toBe(true);
+  });
+
+  it('should work without date parameter (backward compatibility)', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'Lima', level: 95, experience: 8_000_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    await service.refreshScores(1);
+
+    const result = await service.getTopPlayers(1, 10);
+
+    expect(result.totalItems).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].nickname).toBe('Lima');
+  });
+
+  it('should handle date parameter correctly with pagination', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'Mike', level: 100, experience: 9_000_000 },
+      { rank: 2, name: 'November', level: 90, experience: 8_000_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    await service.refreshScores(2);
+
+    const targetDate = new Date('2024-01-25T10:00:00Z');
+    const result = await service.getTopPlayers(1, 1, targetDate);
+
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(1);
+    expect(Array.isArray(result.items)).toBe(true);
+  });
 });

@@ -2,16 +2,19 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { Sequelize } from 'sequelize-typescript';
+import { getModelToken } from '@nestjs/sequelize';
 import WebScrapingPlayersGateway from '../src/players/gateways/web-scrapping-players.gateway';
 import { IPlayerGateway, IPlayerWebScrapperScore } from '../src/players/types';
 import { PlayersService } from '../src/players/services/players.service';
 import { AppModule } from '../src/app.module';
+import { Score } from '../src/players/models/score.model';
 
 describe('Players endpoints (e2e)', () => {
   let app: INestApplication;
   let gatewayMock: jest.Mocked<IPlayerGateway>;
   let playersService: PlayersService;
   let sequelize: Sequelize;
+  let scoreModel: typeof Score;
 
   beforeAll(async () => {
     // configure AppModule's Sequelize connection for tests
@@ -41,6 +44,7 @@ describe('Players endpoints (e2e)', () => {
     await app.init();
     playersService = moduleFixture.get(PlayersService);
     sequelize = moduleFixture.get(Sequelize);
+    scoreModel = moduleFixture.get<typeof Score>(getModelToken(Score));
   });
 
   beforeEach(async () => {
@@ -241,5 +245,140 @@ describe('Players endpoints (e2e)', () => {
         'endDate must be a valid ISO 8601 date string',
       ]),
     );
+  });
+
+  it('GET /players/top should work without date parameter (backward compatibility)', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'Golf', level: 75, experience: 4_000_000 },
+      { rank: 2, name: 'Hotel', level: 70, experience: 3_500_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    await playersService.refreshScores(2);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const response = await request(app.getHttpServer())
+      .get('/players/top')
+      .query({ page: 1, limit: 10 })
+      .expect(200);
+
+    expect(response.body.totalItems).toBe(2);
+    expect(response.body.items).toHaveLength(2);
+  });
+
+  it('GET /players/top should return players for closest next date when date parameter is provided', async () => {
+    const firstDate = new Date('2024-01-01T10:00:00Z');
+    const secondDate = new Date('2024-01-02T10:00:00Z');
+    const thirdDate = new Date('2024-01-03T10:00:00Z');
+
+    // Mock to return different players at different times
+    gatewayMock.fetchTopPlayers
+      .mockResolvedValueOnce([
+        { rank: 1, name: 'Player1', level: 50, experience: 1_000_000 },
+      ])
+      .mockResolvedValueOnce([
+        { rank: 1, name: 'Player2', level: 60, experience: 2_000_000 },
+      ])
+      .mockResolvedValueOnce([
+        { rank: 1, name: 'Player3', level: 70, experience: 3_000_000 },
+      ]);
+
+    // Create scores at different dates
+    await playersService.refreshScores(1);
+    // Manually set datetime for first score
+    const firstTop = await playersService.getTopPlayers(1, 10);
+    const firstPlayerId = firstTop.items[0].id;
+    await scoreModel.update(
+      { datetime: firstDate },
+      { where: { playerId: firstPlayerId } },
+    );
+
+    await playersService.refreshScores(1);
+    const secondTop = await playersService.getTopPlayers(1, 10);
+    const secondPlayerId = secondTop.items[0].id;
+    await scoreModel.update(
+      { datetime: secondDate },
+      { where: { playerId: secondPlayerId } },
+    );
+
+    await playersService.refreshScores(1);
+    const thirdTop = await playersService.getTopPlayers(1, 10);
+    const thirdPlayerId = thirdTop.items[0].id;
+    await scoreModel.update(
+      { datetime: thirdDate },
+      { where: { playerId: thirdPlayerId } },
+    );
+
+    // Query with date between first and second - should return second
+    const queryDate = new Date('2024-01-01T15:00:00Z'); // Between first and second
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const response = await request(app.getHttpServer())
+      .get('/players/top')
+      .query({ page: 1, limit: 10, date: queryDate.toISOString() })
+      .expect(200);
+
+    expect(response.body.totalItems).toBe(1);
+    expect(response.body.items[0].nickname).toBe('Player2');
+    expect(response.body.items[0].scores[0].experience).toBe(2_000_000);
+  });
+
+  it('GET /players/top should return empty when no date found after given date', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'India', level: 80, experience: 5_000_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    await playersService.refreshScores(1);
+
+    // Query with a date far in the future
+    const futureDate = new Date('2099-12-31T00:00:00Z');
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const response = await request(app.getHttpServer())
+      .get('/players/top')
+      .query({ page: 1, limit: 10, date: futureDate.toISOString() })
+      .expect(200);
+
+    expect(response.body.totalItems).toBe(0);
+    expect(response.body.items).toHaveLength(0);
+  });
+
+  it('GET /players/top should validate date parameter as ISO 8601 date string', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const response = await request(app.getHttpServer())
+      .get('/players/top')
+      .query({ page: 1, limit: 10, date: 'not-a-valid-date' })
+      .expect(400);
+
+    expect(response.body.statusCode).toBe(400);
+    expect(response.body.message).toEqual(
+      expect.arrayContaining(['date must be a valid ISO 8601 date string']),
+    );
+  });
+
+  it('GET /players/top should return exact date when querying with exact date', async () => {
+    const targetDate = new Date('2024-01-15T12:00:00Z');
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue([
+      { rank: 1, name: 'Juliet', level: 90, experience: 6_000_000 },
+    ]);
+
+    await playersService.refreshScores(1);
+
+    // Set the score to the exact target date
+    const top = await playersService.getTopPlayers(1, 10);
+    const playerId = top.items[0].id;
+    await scoreModel.update({ datetime: targetDate }, { where: { playerId } });
+
+    // Query with the exact same date
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const response = await request(app.getHttpServer())
+      .get('/players/top')
+      .query({ page: 1, limit: 10, date: targetDate.toISOString() })
+      .expect(200);
+
+    expect(response.body.totalItems).toBe(1);
+    expect(response.body.items[0].nickname).toBe('Juliet');
   });
 });

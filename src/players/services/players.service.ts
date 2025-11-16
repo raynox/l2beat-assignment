@@ -23,12 +23,17 @@ export class PlayersService implements IPlayersService {
     private readonly scoresRepository: IScoreRepository,
   ) {}
 
-  async getTopPlayers(page: number, limit: number): Promise<IPaginatedPlayers> {
+  async getTopPlayers(
+    page: number,
+    limit: number,
+    date?: Date,
+  ): Promise<IPaginatedPlayers> {
     const safePage = Math.max(page, 1);
     const offset = (safePage - 1) * limit;
     const { players, totalItems } = await this.playersRepository.findTopPlayers(
       limit,
       offset,
+      date,
     );
 
     const totalPages = totalItems || Math.ceil(totalItems / limit);

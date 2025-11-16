@@ -31,6 +31,10 @@ export class GetTopPlayersQueryDto {
   @IsInt()
   @Min(1)
   limit?: number;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 }
 
 export interface IPlayer {
@@ -74,7 +78,11 @@ export interface IPlayerGateway {
 }
 
 export interface IPlayersService {
-  getTopPlayers(page: number, limit: number): Promise<IPaginatedPlayers>;
+  getTopPlayers(
+    page: number,
+    limit: number,
+    date?: Date,
+  ): Promise<IPaginatedPlayers>;
   getPlayerById(id: string): Promise<IPlayer>;
   refreshScores(limit: number): Promise<void>;
   getPlayerScores(
@@ -85,7 +93,11 @@ export interface IPlayersService {
 }
 
 export interface IPlayerRepository {
-  findTopPlayers(limit: number, offset: number): Promise<IFindTopPlayersResult>;
+  findTopPlayers(
+    limit: number,
+    offset: number,
+    date?: Date,
+  ): Promise<IFindTopPlayersResult>;
   findPlayerByNickname(nickname: string): Promise<IPlayer | null>;
   findPlayerById(id: string): Promise<IPlayer | null>;
   savePlayer(player: IPlayer): Promise<IPlayer>;
