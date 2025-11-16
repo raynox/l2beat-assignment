@@ -16,10 +16,27 @@ export default class WebScrapingPlayersGateway implements IPlayerGateway {
   async fetchTopPlayers(limit: number): Promise<IPlayerWebScrapperScore[]> {
     let page = 1;
     const players: IPlayerWebScrapperScore[] = [];
+    const seenPlayers = new Set<string>();
 
     while (players.length < limit) {
       const newPlayers = await this.scrapPage(page);
-      players.push(...newPlayers);
+
+      const uniqueNewPlayers = newPlayers.filter((player) => {
+        const key = `${player.rank}:${player.name}`;
+
+        if (seenPlayers.has(key)) {
+          return false;
+        }
+
+        seenPlayers.add(key);
+        return true;
+      });
+
+      if (uniqueNewPlayers.length === 0) {
+        break;
+      }
+
+      players.push(...uniqueNewPlayers);
       page++;
     }
 
