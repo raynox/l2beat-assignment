@@ -11,13 +11,27 @@ import { Log } from './logger/models/log.model';
 @Module({
   imports: [
     PlayersModule,
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
+    }),
     ScheduleModule.forRoot(),
-    SequelizeModule.forRoot({
-      dialect: 'sqlite',
-      storage: 'database.sqlite',
-      models: [Player, Score, Log],
-      autoLoadModels: true,
+    SequelizeModule.forRootAsync({
+      useFactory: () => {
+        const loggingEnv = process.env.DB_LOGGING;
+
+        return {
+          dialect: 'sqlite' as const,
+          storage: process.env.DB_STORAGE ?? 'database.sqlite',
+          models: [Player, Score, Log],
+          autoLoadModels: true,
+          // default to true when not explicitly configured
+          logging:
+            loggingEnv === undefined
+              ? true
+              : loggingEnv.toLowerCase() === 'true',
+        };
+      },
     }),
     LoggerModule,
   ],
