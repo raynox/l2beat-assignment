@@ -1,4 +1,6 @@
-import { Inject, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/sequelize';
+import { Sequelize } from 'sequelize-typescript';
 import { PlayersDbRepository } from '../repositories/players-db.repository';
 import {
   IPlayer,
@@ -12,7 +14,9 @@ import {
 import WebScrapingPlayersGateway from '../gateways/web-scrapping-players.gateway';
 import { v4 as uuidv4 } from 'uuid';
 import { ScoresDbRepository } from '../repositories/scores-db.repository';
+import { DbLoggerService } from '../../logger/db-logger.service';
 
+@Injectable()
 export class PlayersService implements IPlayersService {
   constructor(
     @Inject(PlayersDbRepository)
@@ -21,7 +25,12 @@ export class PlayersService implements IPlayersService {
     private readonly playersGateway: IPlayerGateway,
     @Inject(ScoresDbRepository)
     private readonly scoresRepository: IScoreRepository,
-  ) {}
+    @InjectConnection()
+    private readonly sequelize: Sequelize,
+    private readonly logger: DbLoggerService,
+  ) {
+    this.logger.setContext(PlayersService.name);
+  }
 
   async getTopPlayers(
     page: number,
@@ -48,26 +57,56 @@ export class PlayersService implements IPlayersService {
   }
 
   async refreshScores(limit: number): Promise<void> {
-    const datetime = new Date();
-    const results = await this.playersGateway.fetchTopPlayers(limit);
+    const transaction = await this.sequelize.transaction();
 
-    for (const player of results) {
-      let dbPlayer: IPlayer | null =
-        await this.playersRepository.findPlayerByNickname(player.name);
+    try {
+      const datetime = new Date();
+      const results = await this.playersGateway.fetchTopPlayers(limit);
 
-      if (!dbPlayer) {
-        dbPlayer = await this.playersRepository.savePlayer({
-          id: uuidv4(),
-          nickname: player.name,
-        });
+      for (const player of results) {
+        let dbPlayer: IPlayer | null =
+          await this.playersRepository.findPlayerByNickname(
+            player.name,
+            transaction,
+          );
+
+        if (!dbPlayer) {
+          dbPlayer = await this.playersRepository.savePlayer(
+            {
+              id: uuidv4(),
+              nickname: player.name,
+            },
+            transaction,
+          );
+        }
+
+        await this.scoresRepository.saveScore(
+          dbPlayer.id,
+          {
+            rank: player.rank,
+            level: player.level,
+            experience: player.experience,
+            datetime,
+          },
+          transaction,
+        );
       }
 
-      await this.scoresRepository.saveScore(dbPlayer.id, {
-        rank: player.rank,
-        level: player.level,
-        experience: player.experience,
-        datetime,
-      });
+      await transaction.commit();
+      this.logger.log(
+        `Successfully refreshed scores for ${results.length} players`,
+      );
+    } catch (error) {
+      await transaction.rollback();
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorStack = error instanceof Error ? error.stack : String(error);
+      this.logger.error(
+        `Failed to refresh scores: ${errorMessage}`,
+        errorStack,
+      );
+
+      throw error;
     }
   }
 

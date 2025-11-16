@@ -17,10 +17,6 @@ describe('Players endpoints (e2e)', () => {
   let scoreModel: typeof Score;
 
   beforeAll(async () => {
-    // configure AppModule's Sequelize connection for tests
-    process.env.DB_STORAGE = ':memory:';
-    process.env.DB_LOGGING = 'false';
-
     gatewayMock = {
       fetchTopPlayers: jest.fn<Promise<IPlayerWebScrapperScore[]>, [number]>(
         () => Promise.resolve([]),
@@ -187,7 +183,6 @@ describe('Players endpoints (e2e)', () => {
 
     const player = topResponse.body.items[0];
 
-    // missing startDate
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     let response = await request(app.getHttpServer())
       .get(`/players/${player.id}/scores`)
@@ -201,7 +196,6 @@ describe('Players endpoints (e2e)', () => {
       ]),
     );
 
-    // missing endDate
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     response = await request(app.getHttpServer())
       .get(`/players/${player.id}/scores`)
@@ -231,7 +225,6 @@ describe('Players endpoints (e2e)', () => {
 
     const player = topResponse.body.items[0];
 
-    // invalid date strings
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const response = await request(app.getHttpServer())
       .get(`/players/${player.id}/scores`)
@@ -272,7 +265,6 @@ describe('Players endpoints (e2e)', () => {
     const secondDate = new Date('2024-01-02T10:00:00Z');
     const thirdDate = new Date('2024-01-03T10:00:00Z');
 
-    // Mock to return different players at different times
     gatewayMock.fetchTopPlayers
       .mockResolvedValueOnce([
         { rank: 1, name: 'Player1', level: 50, experience: 1_000_000 },
@@ -284,9 +276,7 @@ describe('Players endpoints (e2e)', () => {
         { rank: 1, name: 'Player3', level: 70, experience: 3_000_000 },
       ]);
 
-    // Create scores at different dates
     await playersService.refreshScores(1);
-    // Manually set datetime for first score
     const firstTop = await playersService.getTopPlayers(1, 10);
     const firstPlayerId = firstTop.items[0].id;
     await scoreModel.update(
@@ -310,7 +300,6 @@ describe('Players endpoints (e2e)', () => {
       { where: { playerId: thirdPlayerId } },
     );
 
-    // Query with date between first and second - should return second
     const queryDate = new Date('2024-01-01T15:00:00Z'); // Between first and second
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const response = await request(app.getHttpServer())
@@ -332,7 +321,6 @@ describe('Players endpoints (e2e)', () => {
 
     await playersService.refreshScores(1);
 
-    // Query with a date far in the future
     const futureDate = new Date('2099-12-31T00:00:00Z');
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const response = await request(app.getHttpServer())
@@ -366,12 +354,10 @@ describe('Players endpoints (e2e)', () => {
 
     await playersService.refreshScores(1);
 
-    // Set the score to the exact target date
     const top = await playersService.getTopPlayers(1, 10);
     const playerId = top.items[0].id;
     await scoreModel.update({ datetime: targetDate }, { where: { playerId } });
 
-    // Query with the exact same date
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const response = await request(app.getHttpServer())
       .get('/players/top')

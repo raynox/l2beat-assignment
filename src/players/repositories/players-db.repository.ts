@@ -8,7 +8,7 @@ import {
 } from '../types';
 import { Score } from '../models/score.model';
 import { NotFoundException } from '@nestjs/common';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 
 export class PlayersDbRepository implements IPlayerRepository {
   constructor(
@@ -79,10 +79,13 @@ export class PlayersDbRepository implements IPlayerRepository {
     return { players, totalItems: count };
   }
 
-  async savePlayer(player: IPlayer) {
-    const dbPlayer = await this.playerModel.create({
-      nickname: player.nickname,
-    });
+  async savePlayer(player: IPlayer, transaction?: Transaction) {
+    const dbPlayer = await this.playerModel.create(
+      {
+        nickname: player.nickname,
+      },
+      { transaction },
+    );
 
     return dbPlayer.toJSON<IPlayer>();
   }
@@ -91,8 +94,11 @@ export class PlayersDbRepository implements IPlayerRepository {
     await this.scoreModel.create({ ...score, playerId });
   }
 
-  async findPlayerByNickname(nickname: string) {
-    const player = await this.playerModel.findOne({ where: { nickname } });
+  async findPlayerByNickname(nickname: string, transaction?: Transaction) {
+    const player = await this.playerModel.findOne({
+      where: { nickname },
+      transaction,
+    });
     return player?.toJSON<IPlayer>() ?? null;
   }
 

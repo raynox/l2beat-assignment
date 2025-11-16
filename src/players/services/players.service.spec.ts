@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SequelizeModule } from '@nestjs/sequelize';
+import { SequelizeModule, getModelToken } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { PlayersService } from './players.service';
 import { PlayersDbRepository } from '../repositories/players-db.repository';
@@ -8,14 +8,23 @@ import { Player } from '../models/player.model';
 import { Score } from '../models/score.model';
 import { IPlayerGateway, IPlayerWebScrapperScore } from '../types';
 import WebScrapingPlayersGateway from '../gateways/web-scrapping-players.gateway';
+import { LoggerModule } from '../../logger/logger.module';
+import { Log } from '../../logger/models/log.model';
 
 describe('PlayersService (integration with SQLite, mocked gateway)', () => {
   let moduleRef: TestingModule;
   let service: PlayersService;
   let sequelize: Sequelize;
   let gatewayMock: jest.Mocked<IPlayerGateway>;
+  let playerModel: typeof Player;
+  let scoreModel: typeof Score;
+  let logModel: typeof Log;
 
   beforeAll(async () => {
+    // Disable console logging in tests
+    process.env.CONSOLE_LOGGING = 'false';
+    process.env.NODE_ENV = 'test';
+
     gatewayMock = {
       fetchTopPlayers: jest.fn<Promise<IPlayerWebScrapperScore[]>, [number]>(
         () => Promise.resolve([]),
@@ -27,12 +36,13 @@ describe('PlayersService (integration with SQLite, mocked gateway)', () => {
         SequelizeModule.forRoot({
           dialect: 'sqlite',
           storage: ':memory:',
-          models: [Player, Score],
+          models: [Player, Score, Log],
           autoLoadModels: true,
           synchronize: true,
           logging: false,
         }),
-        SequelizeModule.forFeature([Player, Score]),
+        SequelizeModule.forFeature([Player, Score, Log]),
+        LoggerModule,
       ],
       providers: [
         PlayersService,
@@ -47,6 +57,9 @@ describe('PlayersService (integration with SQLite, mocked gateway)', () => {
 
     service = moduleRef.get(PlayersService);
     sequelize = moduleRef.get(Sequelize);
+    playerModel = moduleRef.get<typeof Player>(getModelToken(Player));
+    scoreModel = moduleRef.get<typeof Score>(getModelToken(Score));
+    logModel = moduleRef.get<typeof Log>(getModelToken(Log));
   });
 
   beforeEach(async () => {
@@ -190,5 +203,147 @@ describe('PlayersService (integration with SQLite, mocked gateway)', () => {
     expect(result.page).toBe(1);
     expect(result.limit).toBe(1);
     expect(Array.isArray(result.items)).toBe(true);
+  });
+
+  it('should rollback transaction when an error occurs during refreshScores', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'TransactionTest', level: 50, experience: 1_000_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    // Mock the scoresRepository to throw an error on saveScore
+    const scoresRepository = moduleRef.get(ScoresDbRepository);
+    jest
+      .spyOn(scoresRepository, 'saveScore')
+      .mockRejectedValueOnce(new Error('Database error'));
+
+    await expect(service.refreshScores(1)).rejects.toThrow('Database error');
+
+    // Verify that no players or scores were saved due to transaction rollback
+    const players = await playerModel.findAll();
+    const scores = await scoreModel.findAll();
+
+    expect(players).toHaveLength(0);
+    expect(scores).toHaveLength(0);
+
+    // Restore original method
+    jest.spyOn(scoresRepository, 'saveScore').mockRestore();
+  });
+
+  it('should commit transaction and save all data when refreshScores succeeds', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'SuccessPlayer1', level: 60, experience: 2_000_000 },
+      { rank: 2, name: 'SuccessPlayer2', level: 55, experience: 1_500_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    await service.refreshScores(2);
+
+    // Verify that all players and scores were saved
+    const players = await playerModel.findAll();
+    const scores = await scoreModel.findAll();
+
+    expect(players).toHaveLength(2);
+    expect(scores).toHaveLength(2);
+
+    const player1 = players.find((p) => p.nickname === 'SuccessPlayer1');
+    const player2 = players.find((p) => p.nickname === 'SuccessPlayer2');
+
+    expect(player1).toBeDefined();
+    expect(player2).toBeDefined();
+
+    const score1 = scores.find((s) => s.playerId === player1?.id);
+    const score2 = scores.find((s) => s.playerId === player2?.id);
+
+    expect(score1?.rank).toBe(1);
+    expect(score1?.level).toBe(60);
+    expect(score1?.experience).toBe(2_000_000);
+    expect(score2?.rank).toBe(2);
+    expect(score2?.level).toBe(55);
+    expect(score2?.experience).toBe(1_500_000);
+  });
+
+  it('should create a log entry in the database after successful refreshScores', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'LogTestPlayer', level: 70, experience: 3_000_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    // Clear any existing logs
+    await logModel.destroy({ where: {}, force: true });
+
+    await service.refreshScores(1);
+
+    // Wait a bit for async log saving
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify that a log entry was created
+    const logs = await logModel.findAll({
+      where: {
+        level: 'log',
+      },
+      order: [['loggedAt', 'DESC']],
+    });
+
+    expect(logs.length).toBeGreaterThan(0);
+
+    const successLog = logs.find((log) =>
+      log.message.includes('Successfully refreshed scores'),
+    );
+
+    expect(successLog).toBeDefined();
+    expect(successLog?.message).toContain('Successfully refreshed scores');
+    expect(successLog?.message).toContain('1 players');
+    expect(successLog?.context).toBe('PlayersService');
+  });
+
+  it('should create an error log entry when refreshScores fails', async () => {
+    const gatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'ErrorLogTest', level: 40, experience: 500_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers.mockResolvedValue(gatewayPlayers);
+
+    // Mock the playersRepository to throw an error on savePlayer
+    const playersRepository = moduleRef.get(PlayersDbRepository);
+    jest
+      .spyOn(playersRepository, 'savePlayer')
+      .mockRejectedValueOnce(new Error('Save player failed'));
+
+    // Clear any existing logs
+    await logModel.destroy({ where: {}, force: true });
+
+    await expect(service.refreshScores(1)).rejects.toThrow(
+      'Save player failed',
+    );
+
+    // Wait a bit for async log saving
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify that an error log entry was created
+    const errorLogs = await logModel.findAll({
+      where: {
+        level: 'error',
+      },
+      order: [['loggedAt', 'DESC']],
+    });
+
+    expect(errorLogs.length).toBeGreaterThan(0);
+
+    const errorLog = errorLogs.find((log) =>
+      log.message.includes('Failed to refresh scores'),
+    );
+
+    expect(errorLog).toBeDefined();
+    expect(errorLog?.message).toContain('Failed to refresh scores');
+    expect(errorLog?.message).toContain('Save player failed');
+    expect(errorLog?.context).toBe('PlayersService');
+    expect(errorLog?.stack).toBeDefined();
+
+    // Restore original method
+    jest.spyOn(playersRepository, 'savePlayer').mockRestore();
   });
 });

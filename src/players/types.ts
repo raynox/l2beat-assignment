@@ -1,5 +1,6 @@
 import { IsDateString, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Transaction } from 'sequelize';
 
 export class GetPlayerByIdParamsDto {
   @IsUUID()
@@ -98,13 +99,20 @@ export interface IPlayerRepository {
     offset: number,
     date?: Date,
   ): Promise<IFindTopPlayersResult>;
-  findPlayerByNickname(nickname: string): Promise<IPlayer | null>;
+  findPlayerByNickname(
+    nickname: string,
+    transaction?: Transaction,
+  ): Promise<IPlayer | null>;
   findPlayerById(id: string): Promise<IPlayer | null>;
-  savePlayer(player: IPlayer): Promise<IPlayer>;
+  savePlayer(player: IPlayer, transaction?: Transaction): Promise<IPlayer>;
 }
 
 export interface IScoreRepository {
-  saveScore(playerId: string, score: IScore): Promise<void>;
+  saveScore(
+    playerId: string,
+    score: IScore,
+    transaction?: Transaction,
+  ): Promise<void>;
   getPlayerScoresInRange(
     playerId: string,
     startDate: Date,

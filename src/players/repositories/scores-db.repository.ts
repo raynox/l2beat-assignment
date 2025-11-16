@@ -1,13 +1,17 @@
 import { InjectModel } from '@nestjs/sequelize';
 import { Score } from '../models/score.model';
 import { IScore, IScoreRepository } from '../types';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 
 export class ScoresDbRepository implements IScoreRepository {
   constructor(@InjectModel(Score) private scoreModel: typeof Score) {}
 
-  async saveScore(playerId: string, score: IScore): Promise<void> {
-    await this.scoreModel.create({ ...score, playerId });
+  async saveScore(
+    playerId: string,
+    score: IScore,
+    transaction?: Transaction,
+  ): Promise<void> {
+    await this.scoreModel.create({ ...score, playerId }, { transaction });
   }
 
   async getPlayerScoresInRange(

@@ -9,9 +9,14 @@ import { Player } from './models/player.model';
 import { Score } from './models/score.model';
 import { TasksService } from './services/tasks.service';
 import { ScoresDbRepository } from './repositories/scores-db.repository';
+import { LoggerModule } from '../logger/logger.module';
 
 @Module({
-  imports: [ConfigModule, SequelizeModule.forFeature([Player, Score])],
+  imports: [
+    ConfigModule,
+    SequelizeModule.forFeature([Player, Score]),
+    LoggerModule,
+  ],
   controllers: [PlayersController],
   providers: [
     WebScrapingPlayersService,
