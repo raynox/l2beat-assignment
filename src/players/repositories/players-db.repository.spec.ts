@@ -15,7 +15,7 @@ describe('PlayersDbRepository (integration with SQLite)', () => {
       imports: [
         SequelizeModule.forRoot({
           dialect: 'sqlite',
-          storage: ':memory:', // dedicated in-memory SQLite DB for tests
+          storage: ':memory:',
           models: [Player, Score],
           autoLoadModels: true,
           synchronize: true,
