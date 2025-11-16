@@ -15,7 +15,7 @@ export class TasksService {
     this.maxPlayers = this.configService.get('MAX_PLAYERS') ?? 10;
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async handleCron() {
     await this.playersService.refreshScores(this.maxPlayers);
   }
