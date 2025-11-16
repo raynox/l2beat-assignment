@@ -112,4 +112,33 @@ describe('PlayersService (integration with SQLite, mocked gateway)', () => {
     expect(scores[0].level).toBe(70);
     expect(scores[0].experience).toBe(3_000_000);
   });
+
+  it('should not duplicate player and should append a new score on subsequent refreshScores', async () => {
+    const firstGatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'Delta', level: 50, experience: 1_000_000 },
+    ];
+
+    const secondGatewayPlayers: IPlayerWebScrapperScore[] = [
+      { rank: 1, name: 'Delta', level: 55, experience: 1_200_000 },
+    ];
+
+    gatewayMock.fetchTopPlayers
+      .mockResolvedValueOnce(firstGatewayPlayers)
+      .mockResolvedValueOnce(secondGatewayPlayers);
+
+    await service.refreshScores(1);
+    await service.refreshScores(1);
+
+    const topResult = await service.getTopPlayers(1, 10);
+    const player = topResult.items[0];
+
+    const start = new Date(0);
+    const end = new Date(Date.now() + 60_000);
+
+    const scores = await service.getPlayerScores(player.id, start, end);
+
+    expect(scores).toHaveLength(2);
+    const experiences = scores.map((s) => s.experience).sort();
+    expect(experiences).toEqual([1_000_000, 1_200_000]);
+  });
 });
