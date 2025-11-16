@@ -148,9 +148,6 @@ The application is organized into two main modules:
 - `src/logger/repositories/logs.repository.ts`  
   Sequelize-based repository for persisting log entries. Saves log records with level, message, context, optional stack traces, metadata, and correlation IDs to the `Log` model for later analysis and debugging.
 
-- `src/logger/models/log.model.ts`  
-  Sequelize model representing log entries in the database. Stores log level, message text, optional context string, stack traces, JSON metadata, correlation IDs, and timestamps. Used throughout the application for structured, queryable logging.
-
 ## Configuration
 
 | Variable          | Description                                                                                          | Default                   |
